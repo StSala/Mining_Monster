@@ -1,0 +1,269 @@
+-----------------------------------------------------------------------------------------
+--
+-- main.lua
+--
+-----------------------------------------------------------------------------------------
+
+-- Removes status bar on iOS
+display.setStatusBar( display.HiddenStatusBar )
+
+-- Removes bottom bar on Android 
+if system.getInfo( "androidApiLevel" ) and system.getInfo( "androidApiLevel" ) < 19 then
+	native.setProperty( "androidSystemUiVisibility", "lowProfile" )
+else
+	native.setProperty( "androidSystemUiVisibility", "immersiveSticky" ) 
+end
+
+
+
+local relayout = require("relayout")
+
+--
+--layout 
+
+local _W, _H, _CX, _CY = relayout._W, relayout._H, relayout._CX, relayout._CY
+
+--
+-- background
+
+local background = display.newImageRect( "background.png",2000,1000 )
+background.x = display.contentCenterX
+background.y = display.contentCenterY
+
+
+--local platform = display.newImage("platform.png", _CX, _CY)
+--platform.x = display.contentCenterX
+--platform.y = display.contentCenterY+150
+--platform.alpha = 0.8
+
+
+--local myText = display.newText( "Ciao mi panko!", _CX, _CY, native.systemFont, 16 )
+--myText:setFillColor( 1, 1, 0 )
+
+--
+-- Man
+
+local man = display.newRect( _W - 400, _H - 100, 20 , 20)
+man.fill = { 0, 1, 0}
+
+man.velocity = 0
+man.gravity = 0.5
+
+--local physics = require( "physics" )
+--physics.start()
+
+--physics.addBody( man, "dynamic", { radius= 50 , bounce=1 } )
+ 
+--local function pushMan()
+--    man:applyLinearImpulse( 0, -0.75, man.x, man.y )
+--end
+
+--
+-- variables
+
+local groundObs = {}
+local canAddObs = 0
+
+
+--
+-- Ground Obstacle 
+
+local function addObastacle()
+    local distanceObstacle = math.random(120,170)
+    local  yPos = math.random(50, _H )
+
+    local obsBottom = display.newRect(_W + 50 ,  _CY + 200 , math.random(200,300), 200)
+    obsBottom.fill = {0, 1 , 0 }
+    obsBottom.type = "ground_obstacle"   -- need it for testing 
+    groundObs[#groundObs +1] = obsBottom
+
+    local obsUp = display.newRect(_W + 50 ,  (distanceObstacle /2 ) , 100, 600)
+    obsUp.fill = {1 , 0 , 0 }
+    obsUp.type = "upper_obstacle"   -- need it for testing 
+    groundObs[#groundObs +1] = obsUps
+
+    local obsSensor = display.newRect(_W + 80 , _CY + 150, _W, 5)
+    obsSensor.fill = {0 , 1 , 0 }
+    obsSensor.type = "sensor"   -- need it for testing 
+    groundObs[#groundObs +1] = obsSensor
+end
+
+
+
+
+--
+-- update
+
+local function update()
+
+    for i = #groundObs , 1, -1 do
+        local object = groundObs[i]
+        object:translate( -3, 0 )
+    end
+    
+    man.velocity = man.velocity - man.gravity
+    man.y = man.y - man.velocity
+
+
+    --
+
+    if canAddObs > 100 then
+        addObastacle()
+
+        canAddObs = 0 
+    end
+
+    canAddObs = canAddObs +1 
+end
+
+Runtime:addEventListener("enterFrame", update)
+
+
+
+--
+-- TOUCH
+
+-- Activate multitouch
+system.activate( "multitouch" )
+
+-- Create two display objects on the screen
+local newRect1 = display.newRect( display.contentCenterX, 160, 60, 60 )
+newRect1:setFillColor( 1, 0, 0.3 )
+local newRect2 = display.newRect( display.contentCenterX, 320, 60, 60 )
+newRect2:setFillColor( 0.3, 0, 1 )
+ 
+-- Touch event listener
+local function touchListener( event )
+ 
+    print( "Unique touch ID: " .. tostring(event.id) )
+ 
+    if ( event.phase == "began" ) then
+        event.target.alpha = 0.5
+        man.velocity  = 10
+        -- Set focus on object using unique touch ID
+        display.getCurrentStage():setFocus( event.target, event.id )
+ 
+    elseif ( event.phase == "ended" or event.phase == "cancelled" ) then
+        event.target.alpha = 1
+
+        -- Release focus on object
+        display.getCurrentStage():setFocus( event.target, nil )
+    end
+    return true
+end
+ 
+-- Add a touch listener to each object
+newRect1:addEventListener( "touch", touchListener )
+newRect2:addEventListener( "touch", touchListener )
+
+
+-----------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+
+-- Relayout
+-- This library helps position elements on the screen during the resize event
+local _M = {}
+
+-- Short names for screen width/height and it's center coordinates
+-- They get updated on resize event
+_M._W, _M._H = display.actualContentWidth, display.actualContentHeight
+_M._CX, _M._CY = _M._W / 2, _M._H / 2
+
+-- Perform actual relayout for each listener object or function
+local function relayout()
+    for i = #_M.relayoutListeners, 1, -1 do
+        local l = _M.relayoutListeners[i]
+        if type(l) == 'function' then -- Listener is a simple function
+            l()
+        elseif type(l) == 'table' then -- Listener is a display object
+            if not l.x then -- Remove removeSelf()'ed objects from the list
+                table.remove(_M.relayoutListeners, i)
+            else
+                if type(l.relayout) == 'function' then -- Object has object:relayout() function
+                    l:relayout()
+                else -- If not, perform automatic repositioning
+                    local r = l._relayout
+                    if r.anchor then -- Which screen corner is the object positioned closer to
+                        l.x, l.y = r.anchor.x * _M._W + r.anchor.offset.x, r.anchor.y * _M._H + r.anchor.offset.y
+                    end
+                    if r.width then -- Full screen width
+                        l.width = _M._W
+                    end
+                    if r.height then -- Full screen height
+                        l.height = _M._H
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Add a listener to the internal list
+-- Listener can be a function, an object with a :relayout() method or just a display object
+-- If it's an ordinary display object, calculate data for it's automatic repositioning
+function _M.add(listener)
+    if not _M.relayoutListeners then
+        _M.relayoutListeners = {}
+        Runtime:addEventListener('resize', relayout)
+    end
+    table.insert(_M.relayoutListeners, listener)
+    if type(listener) == 'table' and not listener.relayout then
+        -- Data for automatic repositioning
+        listener._relayout = {}
+        if listener.width == _M._W then -- Full screen width
+            listener._relayout.width = true
+        end
+        if listener.height == _M._H then -- Full screen height
+            listener._relayout.height = true
+        end
+        local anchor = {}
+        for anchorX = 0, 1, 0.5 do -- Iterate through all screen corners and edges and find the closest one
+            for anchorY = 0, 1, 0.5 do
+                local distance = math.sqrt((anchorX * _M._W - listener.x) ^ 2 + (anchorY * _M._H - listener.y) ^ 2)
+                if not anchor.distance or anchor.distance > distance then
+                    anchor.x, anchor.y, anchor.distance = anchorX, anchorY, distance
+                    anchor.offsetX, anchor.offsetY = listener.x - anchorX * _M._W, listener.y - anchorY * _M._H
+                end
+            end
+        end
+        if anchor.distance < math.max(_M._W * 0.33, _M._H * 0.33) then
+            listener._relayout.anchor = { -- Add found anchor to the repositioning data
+                x = anchor.x, y = anchor.y,
+                offset = {
+                    x = anchor.offsetX, y = anchor.offsetY
+                }
+            }
+        end
+    end
+    return listener
+end
+
+-- Remove the given listener from the internal list
+function _M.remove(listener)
+    if not listener or not _M.relayoutListeners then return end
+    local ind = table.indexOf(_M.relayoutListeners, listener)
+    if ind then
+        table.remove(_M.relayoutListeners, ind)
+        if #_M.relayoutListeners == 0 then
+            _M.removeAll()
+        end
+    end
+end
+
+function _M.removeAll()
+    Runtime:removeEventListener('resize', relayout)
+    _M.relayoutListeners = nil
+end
+
+-- Always listen for the resize event to update variables
+Runtime:addEventListener('resize', function()
+    _M._W, _M._H = display.actualContentWidth, display.actualContentHeight
+    _M._CX, _M._CY = _M._W / 2, _M._H / 2 -- display.contentCenterX/Y don't work here, because they are not display.actualContentCenterX/Y
+    -- Move the content area of Corona SDK app to be always at the top left corner
+    -- You may want to not desire this for your app
+    local stage = display.getCurrentStage()
+    stage.x, stage.y = display.screenOriginX, display.screenOriginY
+end)
+
+return _M

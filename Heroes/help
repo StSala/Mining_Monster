@@ -1,0 +1,9 @@
+display.newRect(  x, y, width, height )
+x / y : Number. The x and y coordinates for the center of the rectangle.
+width / height : Number. Width and height of the rectangle.
+
+local obsBottom = display.newRect(_W + 50 ,  (distanceObstacle /2 ) +500 , 100, 600)
+    obsBottom.fill = {0, 1 , 0 }
+    obsBottom.type = "ground_obstacle"   -- need it for testing 
+    groundObs[#groundObs +1] = obsBottom
+
